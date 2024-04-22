@@ -1,5 +1,6 @@
 from game import Game as SnakeGame
 import matplotlib.pyplot as plt
+import copy
 
 if __name__ == "__main__":
     snakeGame = SnakeGame()
@@ -9,13 +10,9 @@ if __name__ == "__main__":
     display = False
     forceDisplay = False
     scores = []
+    best_snake = None
     while True:
         number_games += 1
-        if (forceDisplay):
-            display = True
-            forceDisplay = False
-        else:
-            display = False
             
         snakes = snakeGame.play(display)
         for snake in snakes:
@@ -25,7 +22,7 @@ if __name__ == "__main__":
             record = max(record, snake.length)
             snake.model.save(f"models/snake_{snake.id}.model")
         
-        scores.append(sum([snake.length for snake in snakes])/2)
+        scores.append(sum([snake.length for snake in snakes]) / len(snakes))
         
         # Print Game Information
         if (not display):
@@ -35,12 +32,12 @@ if __name__ == "__main__":
         
     
         # Plot average scores every 10 games
-        if number_games % 100 == 0:
+        if number_games % 10 == 0:
             forceDisplay = True
             total_scores.append(sum(scores)/len(scores))
             scores = []
             plt.clf()
             plt.plot(total_scores)
             plt.ylabel('Average Score')
-            plt.xlabel('Number of Games (100 games per point)')
+            plt.xlabel('Number of Games (10 games per point)')
             plt.savefig("scores.png")

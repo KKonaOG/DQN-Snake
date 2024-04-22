@@ -9,30 +9,34 @@ class Snake():
         self.id = id
         self.alive = True
         self.health = 100
-        self.length = 1
+        self.length = 3
+        self.turns = 0
         self.head = head_position
         self.body = [copy.copy(head_position)]
         self.last_action = None
         self.state = None
+        self.food_reward = 0
+        self.accumulated_reward = 0
         
         # DQN Agent Information
         self.n_actions = 4 # Up, Down, Left, Right
         self.n_observations = 13
         self.epsilon = 1 # Randomness
-        self.epsilon_min = 0.1
-        self.epsilon_decay = 0.995
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.999
         self.gamma = 0.9 # Discount Rate
-        self.lr = 0.005 # Learning Rate
+        self.lr = 0.001 # Learning Rate
         self.batch_size = 1000
         self.model = DQN(self.n_observations, self.n_actions)
         self.trainer = DQN.Trainer(self.model, self.lr, self.gamma)
-        self.memory = DQN.ReplayMemory(100000)
+        self.memory = DQN.ReplayMemory(100_000)
     
     # WARNING: This function trains the model
     def resetSnake(self, new_head_position):
         self.alive = True
         self.health = 100
-        self.length = 1
+        self.length = 3
+        self.accumulated_reward = 0
         self.head = new_head_position
         self.body = [copy.copy(self.head)]
         self._train_long_memory()
@@ -42,8 +46,11 @@ class Snake():
         old_state = copy.deepcopy(self.state)
         self.state = new_state
         
-        if (reward == 0):
+        self.accumulated_reward += reward
+        
+        if (old_state is None):
             return
+            
         
         self._train_short_memory(old_state, self.last_action, reward, self.state)
         self._remember(old_state, self.last_action, self.state, reward)
@@ -81,6 +88,28 @@ class Snake():
         return move_encoding
            
     def getMove(self) -> str:
+        self.turns += 1
+        
+        if (len(self.body) != self.length):
+            self.body.append(copy.copy(self.body[-1]))
+            
+        # Get User Input
+        # movement_to_make = input("Enter a move: ")
+        # if (movement_to_make == "w"):
+        #     self.last_action = [1, 0, 0, 0]
+        #     return "UP"
+        # elif (movement_to_make == "s"):
+        #     self.last_action = [0, 1, 0, 0]
+        #     return "DOWN"
+        # elif (movement_to_make == "a"):
+        #     self.last_action = [0, 0, 1, 0]
+        #     return "LEFT"
+        # elif (movement_to_make == "d"):
+        #     self.last_action = [0, 0, 0, 1]
+        #     return "RIGHT"
+        
+        
+        
         self.last_action = self._get_action()
         if self.last_action == [1, 0, 0, 0]:
             return "UP"

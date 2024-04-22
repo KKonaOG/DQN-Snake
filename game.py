@@ -17,7 +17,7 @@ def clear():
 class Game():
     MINIMUM_FOOD = 3
     NUMBER_SNAKES = 2
-    SIMULATION_SPEED = 0.05
+    SIMULATION_SPEED = 0.01
     
     def __init__(self) -> None:    
         self.game_number = 0  
@@ -31,6 +31,7 @@ class Game():
         # This resets the game for the next round
         self.game_number += 1
         self.turn = 0
+        self.food_locations = []
         self.spawnSnakes()
         self.spawnFood(self.MINIMUM_FOOD)
         self.updateState()
@@ -67,16 +68,17 @@ class Game():
             # be here since the body is updated below
             if (snake.head in snake.body[:-1]):
                 snake.alive = False
+                rewards[snake.id] -= 10
                 continue
         
             if snake.head in self.food_locations:
                 self.food_locations.remove(snake.head)
                 self.spawnFood(self.MINIMUM_FOOD)
-                snake.health = 100
+                # snake.health = 100
                 snake.length += 1
-                rewards[snake.id] += 10
+                snake.food_reward = 10
             else:
-                snake.health -= 1
+                # snake.health -= 1
                 snake.body.pop(0)
             
         '''
@@ -84,49 +86,53 @@ class Game():
         this means one snake's decision is not valued more than the other
         50/50 odds will be selected in head-on collisions, etc.
         '''
-        # Snake Head in Snake Head Death Flag
-        if self.snakes[0].head == self.snakes[1].head and self.snakes[0].alive and self.snakes[1].alive:
-            if self.snakes[0].length < self.snakes[1].length:
-                self.snakes[0].alive = False
-                rewards[0] -= 10
-            elif self.snakes[0].length > self.snakes[1].length:
-                self.snakes[1].alive = False
-                rewards[1] -= 10
-            else:
-                rewards[0] -= 10
-                rewards[1] -= 10
+        for snake in self.snakes:
+            if (not snake.alive):
+                continue
             
-        # Snake Head in Enemy Snake Body Death Flag
-        if (self.snakes[0].head in self.snakes[1].body[:-1] and self.snakes[1].alive):
-            rewards[0] -= 10
-            self.snakes[0].alive = False
-        
-        if (self.snakes[1].head in self.snakes[0].body[:-1] and self.snakes[0].alive):
-            rewards[1] -= 10
-            self.snakes[1].alive = False
+            if (snake.head[0] > 10 or snake.head[0] < 0 or snake.head[1] > 10 or snake.head[1] < 0):
+                snake.alive = False
+                rewards[snake.id] -= 10
+                continue
             
-        # Snake Head OOB Death Flag
-        if (self.snakes[0].head[0] > 10 or self.snakes[0].head[0] < 0 or self.snakes[0].head[1] > 10 or self.snakes[0].head[1] < 0 and self.snakes[0].alive):
-            self.snakes[0].alive = False
-            rewards[0] -= 10
-        if (self.snakes[1].head[0] > 10 or self.snakes[1].head[0] < 0 or self.snakes[1].head[1] > 10 or self.snakes[1].head[1] < 0 and self.snakes[1].alive):
-            self.snakes[1].alive = False
-            rewards[1] -= 10
-            
-        # Snake Health Death Flag
-        if (self.snakes[0].health <= 0 and self.snakes[0].alive):
-            self.snakes[0].alive = False
-            rewards[0] -= 10
-        
-        if (self.snakes[1].health <= 0 and self.snakes[1].alive):
-            self.snakes[1].alive = False
-            rewards[0] -= 10
+            if (snake.health <= 0):
+                snake.alive = False
+                rewards[snake.id] -= 10
+                continue
 
-        # Add + 1 reward for each turn survived
-        for i in range(len(rewards)):
-            if (self.snakes[i].alive):
-                rewards[i] += 1
-    
+        ''' One last loop after all deaths have been calculated to determine head to head and body collisions '''    
+        for snake in self.snakes:
+            if (not snake.alive):
+                continue
+            
+            # Check if snake head is in any other snake head
+            for enemy_snake in self.snakes:
+                if (enemy_snake.id == snake.id or not enemy_snake.alive):
+                    continue
+                if (snake.head == enemy_snake.head):
+                    if (snake.length > enemy_snake.length):
+                        enemy_snake.alive = False
+                        rewards[enemy_snake.id] -= 10
+                        rewards[snake.id] += 10
+                    elif (snake.length < enemy_snake.length):
+                        snake.alive = False
+                        rewards[snake.id] -= 10
+                        rewards[enemy_snake.id] += 10
+                    else:
+                        rewards[snake.id] -= 10
+                        rewards[enemy_snake.id] -= 10
+                        
+                if (snake.head in enemy_snake.body[:-1]):
+                    snake.alive = False
+                    rewards[snake.id] -= 10
+                    
+        # Reward for being alive based off turns since last food pickup
+        for snake in self.snakes:
+            if (snake.alive):
+                rewards[snake.id] += snake.food_reward
+                # rewards[snake.id] += 5
+                snake.food_reward *= 0.75
+                
         # This triggers the game to update state to the next turn
         self.updateState(rewards)
         
@@ -164,16 +170,17 @@ class Game():
             for enemy_snake in self.snakes:
                 if (enemy_snake.id == snake.id or not enemy_snake.alive):
                     continue
-                if (up_point in enemy_snake.body):
+                
+                if (up_point in enemy_snake.body[:-1]):
                     up_in_enemy = True
                     
-                if (down_point in enemy_snake.body):
+                if (down_point in enemy_snake.body[:-1]):
                     down_in_enemy = True
                     
-                if (left_point in enemy_snake.body):
+                if (left_point in enemy_snake.body[:-1]):
                     left_in_enemy = True
                     
-                if (right_point in enemy_snake.body):
+                if (right_point in enemy_snake.body[:-1]):
                     right_in_enemy = True
                     
             
@@ -195,17 +202,35 @@ class Game():
                 distance = abs(enemy_snake.head[0] - snake.head[0]) + abs(enemy_snake.head[1] - snake.head[1])
                 if (distance < closest_distance):
                     closest_distance = distance
-                    closest_enemy = enemy_snake.head
+                    closest_enemy = enemy_snake
                     
-            if (closest_enemy == None):
-                closest_enemy = [np.Inf, np.Inf]
+            bigger_than_enemy = False
+            if (closest_enemy is None or snake.length > closest_enemy.length):
+                bigger_than_enemy = True
+                
+            # Enemy Head Direction
+            enemy_up, enemy_down, enemy_left, enemy_right = 0, 0, 0, 0
+            if (closest_enemy is not None):
+                if (closest_enemy.head[0] < snake.head[0]):
+                    enemy_up = 1
+                elif (closest_enemy.head[0] > snake.head[0]):
+                    enemy_down = 1
+                    
+                if (closest_enemy.head[1] < snake.head[1]):
+                    enemy_left = 1
+                elif (closest_enemy.head[1] > snake.head[1]):
+                    enemy_right = 1
+            else:
+                enemy_up, enemy_down, enemy_left, enemy_right = -1, -1, -1, -1
+                
+                
             
             state = [                
                 # Move Safety (Check all directions for OOB and Snake Collision)
-                (up_point[0] >= 0 and up_point[0] <= 10 and up_point[1] >= 0 and up_point[1] <= 10 and up_point not in snake.body),
-                (down_point[0] >= 0 and down_point[0] <= 10 and down_point[1] >= 0 and down_point[1] <= 10 and down_point not in snake.body),
-                (left_point[0] >= 0 and left_point[0] <= 10 and left_point[1] >= 0 and left_point[1] <= 10 and left_point not in snake.body),
-                (right_point[0] >= 0 and right_point[0] <= 10 and right_point[1] >= 0 and right_point[1] <= 10 and right_point not in snake.body),
+                (up_point[0] < 0 or up_point[0] > 10 or up_point[1] < 0 or up_point[1] > 10 or up_point in snake.body[:-1] or up_in_enemy),
+                (down_point[0] < 0 or down_point[0] > 10 or down_point[1] < 0 or down_point[1] > 10 or down_point in snake.body[:-1] or down_in_enemy),
+                (left_point[0] < 0 or left_point[0] > 10 or left_point[1] < 0 or left_point[1] > 10 or left_point in snake.body[:-1] or left_in_enemy),
+                (right_point[0] < 0 or right_point[0] > 10 or right_point[1] < 0 or right_point[1] > 10 or right_point in snake.body[:-1] or right_in_enemy),
                 
                 # Food Direction
                 (closest_food[0] < snake.head[0]),
@@ -213,17 +238,17 @@ class Game():
                 (closest_food[1] < snake.head[1]),
                 (closest_food[1] > snake.head[1]),
                 
-                # Enemy Body Collision
-                up_in_enemy,
-                down_in_enemy,
-                left_in_enemy,
-                right_in_enemy,
+                # Bigger Than Enemy
+                bigger_than_enemy,
                 
-                # Snake Health 
-                (snake.health / 100)
+                # Enemy Direction
+                enemy_up,
+                enemy_down,
+                enemy_left,
+                enemy_right,
             ]
             
-            state_matricies.append(state)
+            state_matricies.append(np.array(state, dtype=int))
             
             for body_part in snake.body:
                 if (body_part == snake.head):
@@ -236,9 +261,13 @@ class Game():
             
     def spawnSnakes(self):
         # This handles spawning in snakes at the beginning of a game
-        snake_head_locations = np.random.randint(0, 11, (2, 2))
-        while snake_head_locations[0] is snake_head_locations[1]:
-            snake_head_locations = np.random.randint(0, 11, (2, 2))
+        snake_head_locations = np.random.randint(0, 11, (self.NUMBER_SNAKES, 2))
+        
+        # Verify all snake heads are unique
+        for i in range(len(snake_head_locations)):
+            for j in range(i + 1, len(snake_head_locations)):
+                while (snake_head_locations[i][0] == snake_head_locations[j][0] and snake_head_locations[i][1] == snake_head_locations[j][1]):
+                    snake_head_locations[j] = np.random.randint(0, 11, (1, 2))[0]
         
         snake_idx = 0
         for snake_head in snake_head_locations:
@@ -277,7 +306,7 @@ class Game():
         print("Game: {}".format(self.game_number))
         print("Turn: {}".format(self.turn))
         for snake in self.snakes:
-            print("Snake {}: Health: {} Length: {} Alive: {}".format(snake.id, snake.health, snake.length, snake.alive))
+            print("Snake {}: Health: {} Length: {} Alive: {} Acc. Reward: {}".format(snake.id, snake.health, snake.length, snake.alive, snake.accumulated_reward))
         time.sleep(self.SIMULATION_SPEED)
     
     def play(self, drawState):
