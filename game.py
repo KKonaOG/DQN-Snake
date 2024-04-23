@@ -16,14 +16,15 @@ def clear():
 
 class Game():
     MINIMUM_FOOD = 3
-    NUMBER_SNAKES = 2
+    NUMBER_SNAKES = 1
     SIMULATION_SPEED = 0.01
+    BOARD_DIMENSIONS = 11
     
     def __init__(self) -> None:    
         self.game_number = 0  
         self.turn = 1
         self.game_ended = False
-        self.board_matrix = np.zeros((11, 11), dtype=int)
+        self.board_matrix = np.zeros((self.BOARD_DIMENSIONS, self.BOARD_DIMENSIONS), dtype=int)
         self.snakes = []
         self.food_locations = []
     
@@ -74,11 +75,11 @@ class Game():
             if snake.head in self.food_locations:
                 self.food_locations.remove(snake.head)
                 self.spawnFood(self.MINIMUM_FOOD)
-                # snake.health = 100
+                snake.health = 100
                 snake.length += 1
                 snake.food_reward = 10
             else:
-                # snake.health -= 1
+                snake.health -= 1
                 snake.body.pop(0)
             
         '''
@@ -90,7 +91,7 @@ class Game():
             if (not snake.alive):
                 continue
             
-            if (snake.head[0] > 10 or snake.head[0] < 0 or snake.head[1] > 10 or snake.head[1] < 0):
+            if (snake.head[0] > self.BOARD_DIMENSIONS-1 or snake.head[0] < 0 or snake.head[1] > self.BOARD_DIMENSIONS-1 or snake.head[1] < 0):
                 snake.alive = False
                 rewards[snake.id] -= 10
                 continue
@@ -119,25 +120,29 @@ class Game():
                         rewards[snake.id] -= 10
                         rewards[enemy_snake.id] += 10
                     else:
+                        snake.alive = False
+                        enemy_snake.alive = False
                         rewards[snake.id] -= 10
                         rewards[enemy_snake.id] -= 10
                         
                 if (snake.head in enemy_snake.body[:-1]):
                     snake.alive = False
+                    rewards[enemy_snake.id] += 10
                     rewards[snake.id] -= 10
                     
         # Reward for being alive based off turns since last food pickup
         for snake in self.snakes:
             if (snake.alive):
                 rewards[snake.id] += snake.food_reward
-                # rewards[snake.id] += 5
+                rewards[snake.id] += 5
                 snake.food_reward *= 0.75
+                continue
                 
         # This triggers the game to update state to the next turn
         self.updateState(rewards)
         
     def updateState(self, rewards=[0, 0]):
-        self.board_matrix = np.zeros((11, 11), dtype=int)
+        self.board_matrix = np.zeros((self.BOARD_DIMENSIONS, self.BOARD_DIMENSIONS), dtype=int)
         
         # The state matrix is the same as the board matrix
         # however each snake gets a unique state matrix describing
@@ -153,6 +158,17 @@ class Game():
             if (not snake.alive):
                 continue
             
+            for body_part in snake.body:
+                if (body_part == snake.head):
+                    self.board_matrix[snake.head[0]][snake.head[1]] = 2
+                else:
+                    self.board_matrix[body_part[0]][body_part[1]] = 3
+            
+            
+        for snake in self.snakes:
+            if (not snake.alive):
+                continue
+                    
             up_point = copy.copy(snake.head)
             up_point[0] -= 1
             down_point = copy.copy(snake.head)
@@ -161,6 +177,7 @@ class Game():
             left_point[1] -= 1
             right_point = copy.copy(snake.head)
             right_point[1] += 1
+            
             
             up_in_enemy = False
             down_in_enemy = False
@@ -222,15 +239,56 @@ class Game():
                     enemy_right = 1
             else:
                 enemy_up, enemy_down, enemy_left, enemy_right = -1, -1, -1, -1
-                
-                
+        
+            # Check to see if there is a path from the snake head to the snake tail
+            # that only travels through the board_matrix cells with a value of 0
+            # This is a check to see if the snake is trapped
+            target = snake.body[0]
+            start = snake.head
+            notTrapped = False
             
+            # Use a BFS to check if there is a path from the snake head to the snake tail
+            queue = [start]
+            visited = []
+            
+            while (len(queue) > 0):
+                current = queue.pop(0)
+                if (current == target):
+                    notTrapped = True
+                    break
+                
+                if (current in visited):
+                    continue
+                
+                visited.append(current)
+                
+                up_point2 = copy.copy(current)
+                up_point2[0] -= 1
+                down_point2 = copy.copy(current)
+                down_point2[0] += 1
+                left_point2 = copy.copy(current)
+                left_point2[1] -= 1
+                right_point2 = copy.copy(current)
+                right_point2[1] += 1
+                
+                if (up_point2[0] >= 0 and up_point2[0] <= self.BOARD_DIMENSIONS-1 and up_point2[1] >= 0 and up_point2[1] <= self.BOARD_DIMENSIONS-1 and (self.board_matrix[up_point2[0]][up_point2[1]] == 0 or self.board_matrix[up_point2[0]][up_point2[1]] == 1)):
+                    queue.append(up_point2)
+                if (down_point2[0] >= 0 and down_point2[0] <= self.BOARD_DIMENSIONS-1 and down_point2[1] >= 0 and down_point2[1] <= self.BOARD_DIMENSIONS-1 and (self.board_matrix[down_point2[0]][down_point2[1]] == 0 or self.board_matrix[down_point2[0]][down_point2[1]] == 1)):
+                    queue.append(down_point2)
+                if (left_point2[0] >= 0 and left_point2[0] <= self.BOARD_DIMENSIONS-1 and left_point2[1] >= 0 and left_point2[1] <= self.BOARD_DIMENSIONS-1 and (self.board_matrix[left_point2[0]][left_point2[1]] == 0 or self.board_matrix[left_point2[0]][left_point2[1]] == 1)):
+                    queue.append(left_point2)
+                if (right_point2[0] >= 0 and right_point2[0] <= self.BOARD_DIMENSIONS-1 and right_point2[1] >= 0 and right_point2[1] <= self.BOARD_DIMENSIONS-1 and (self.board_matrix[right_point2[0]][right_point2[1]] == 0 or self.board_matrix[right_point2[0]][right_point2[1]] == 1)):
+                    queue.append(right_point2)
+                    
             state = [                
                 # Move Safety (Check all directions for OOB and Snake Collision)
-                (up_point[0] < 0 or up_point[0] > 10 or up_point[1] < 0 or up_point[1] > 10 or up_point in snake.body[:-1] or up_in_enemy),
-                (down_point[0] < 0 or down_point[0] > 10 or down_point[1] < 0 or down_point[1] > 10 or down_point in snake.body[:-1] or down_in_enemy),
-                (left_point[0] < 0 or left_point[0] > 10 or left_point[1] < 0 or left_point[1] > 10 or left_point in snake.body[:-1] or left_in_enemy),
-                (right_point[0] < 0 or right_point[0] > 10 or right_point[1] < 0 or right_point[1] > 10 or right_point in snake.body[:-1] or right_in_enemy),
+                (up_point[0] < 0 or up_point[0] > 10 or up_point[1] < 0 or up_point[1] > self.BOARD_DIMENSIONS-1 or up_point in snake.body[:-1] or up_in_enemy),
+                (down_point[0] < 0 or down_point[0] > self.BOARD_DIMENSIONS-1 or down_point[1] < 0 or down_point[1] > self.BOARD_DIMENSIONS-1 or down_point in snake.body[:-1] or down_in_enemy),
+                (left_point[0] < 0 or left_point[0] > self.BOARD_DIMENSIONS-1 or left_point[1] < 0 or left_point[1] > self.BOARD_DIMENSIONS-1 or left_point in snake.body[:-1] or left_in_enemy),
+                (right_point[0] < 0 or right_point[0] > self.BOARD_DIMENSIONS-1 or right_point[1] < 0 or right_point[1] > self.BOARD_DIMENSIONS-1 or right_point in snake.body[:-1] or right_in_enemy),
+                
+                # Trapped
+                notTrapped,
                 
                 # Food Direction
                 (closest_food[0] < snake.head[0]),
@@ -246,28 +304,28 @@ class Game():
                 enemy_down,
                 enemy_left,
                 enemy_right,
+                
+                # On Edge of Game Board
+                (snake.head[0] == 0),
+                (snake.head[0] == self.BOARD_DIMENSIONS-1),
+                (snake.head[1] == 0),
+                (snake.head[1] == self.BOARD_DIMENSIONS-1)
             ]
             
             state_matricies.append(np.array(state, dtype=int))
-            
-            for body_part in snake.body:
-                if (body_part == snake.head):
-                    self.board_matrix[snake.head[0]][snake.head[1]] = 2
-                else:
-                    self.board_matrix[body_part[0]][body_part[1]] = 3
                     
         for (i, matrix) in enumerate(state_matricies):
             self.snakes[i].setState(matrix, rewards[i])
             
     def spawnSnakes(self):
         # This handles spawning in snakes at the beginning of a game
-        snake_head_locations = np.random.randint(0, 11, (self.NUMBER_SNAKES, 2))
+        snake_head_locations = np.random.randint(0, self.BOARD_DIMENSIONS, (self.NUMBER_SNAKES, 2))
         
         # Verify all snake heads are unique
         for i in range(len(snake_head_locations)):
             for j in range(i + 1, len(snake_head_locations)):
                 while (snake_head_locations[i][0] == snake_head_locations[j][0] and snake_head_locations[i][1] == snake_head_locations[j][1]):
-                    snake_head_locations[j] = np.random.randint(0, 11, (1, 2))[0]
+                    snake_head_locations[j] = np.random.randint(0, self.BOARD_DIMENSIONS, (1, 2))[0]
         
         snake_idx = 0
         for snake_head in snake_head_locations:
@@ -285,7 +343,7 @@ class Game():
         # This spawns food until the number of food in self.food_locations
         # matches numFood
         while(len(self.food_locations) < numFood):
-            random_location = np.random.randint(0, 11, (1, 2))[0]
+            random_location = np.random.randint(0, self.BOARD_DIMENSIONS, (1, 2))[0]
             if (self.board_matrix[random_location[0]][random_location[1]] == 0):
                 self.food_locations.append([random_location[0], random_location[1]])
                 self.board_matrix[random_location[0]][random_location[1]] = 1

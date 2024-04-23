@@ -20,7 +20,7 @@ class Snake():
         
         # DQN Agent Information
         self.n_actions = 4 # Up, Down, Left, Right
-        self.n_observations = 13
+        self.n_observations = 18
         self.epsilon = 1 # Randomness
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.999
@@ -37,6 +37,7 @@ class Snake():
         self.health = 100
         self.length = 3
         self.accumulated_reward = 0
+        self.food_reward = 0
         self.head = new_head_position
         self.body = [copy.copy(self.head)]
         self._train_long_memory()

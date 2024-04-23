@@ -9,7 +9,6 @@ if __name__ == "__main__":
     total_scores = []
     total_turns = []
     display = False
-    forceDisplay = False
     scores = []
     turns = []
     
@@ -40,7 +39,6 @@ if __name__ == "__main__":
         
         # Plot average scores every 100 games
         if number_games % 100 == 0:
-            forceDisplay = True
             total_scores.append(sum(scores)/len(scores))
             total_turns.append(sum(turns)/len(turns))
             
